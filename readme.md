@@ -6,6 +6,15 @@ Goal: map depth using piezoelectric crystals responsible for generating + receiv
  - Include delay offset adjustment argument
  - Include several different waveforms + frequency arg + amplitude arg?
 
+# Status
+
+ - [x] List audio devices
+ - [ ] Record mic input
+ - [ ] Send ping out via speaker
+ - [ ] Show waves/decode useful signals from mic
+ - [ ] Add aux. arguments: wave type (sine,square,sawtooth) frequency, amplitude, distance offset
+
+
 # Dev. Req.
 
 `libasound2-dev`
