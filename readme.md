@@ -11,7 +11,7 @@ Goal: map depth using piezoelectric crystals responsible for generating + receiv
  - [x] List audio devices
  - [ ] Record mic input
  - [ ] Send ping out via speaker
- - [ ] Show waves/decode useful signals from mic
+ - [ ] Show waves/decode useful signals from mic (aka distance calculation)
  - [ ] Add aux. arguments: wave type (sine,square,sawtooth) frequency, amplitude, distance offset
 
 
