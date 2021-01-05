@@ -27,13 +27,12 @@ int main(int argc, char** argv) {
   if (argc > 1) {
     cmd = argv[1];
   }
-  char* strtoul_ptr; // records end of parsing, unused.
   int c;
   opterr = 0;
-  while ((c = getopt (argc, argv, "dio:")) != -1) {
+  while ((c = getopt (argc, argv, "d:i:o:")) != -1) {
     switch (c) {
       case 'd':
-        delay_ms = strtoul(optarg, &strtoul_ptr, 10);
+        delay_ms = strtoul(optarg, NULL, 10);
         break;
 
       case 'i':
