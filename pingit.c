@@ -406,6 +406,7 @@ void ping_loop(int v, uint64_t delay_ms, char* wave_type, char* input_dev_name, 
     out_buffer = (char *) malloc(out_buffer_size);
     
     // TODO generate output sine wave in out_buffer
+    // See https://www.alsa-project.org/alsa-doc/alsa-lib/_2test_2pcm_8c-example.html
     srand(time(NULL));
     for (int i=0; i<out_buffer_size; i++) {
       out_buffer[i] = (char) rand();
