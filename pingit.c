@@ -110,8 +110,6 @@ void help() {
   );
 }
 
-void listdev(char *devname);
-
 void list_hw() {
   char** hints;
   char** n;
