@@ -267,7 +267,7 @@ void ping_loop(int v, uint64_t delay_ms, char* wave_type, char* input_dev_name, 
   
   unsigned int rate = 44100;
   int in_buffer_frames = 512;
-  char* buffer;
+  char* input_buffer;
 
   snd_pcm_t* capture_handle;
   snd_pcm_hw_params_t* hw_params;
@@ -321,7 +321,7 @@ void ping_loop(int v, uint64_t delay_ms, char* wave_type, char* input_dev_name, 
       exit(1);
     }
 
-    buffer = calloc(in_buffer_frames, snd_pcm_format_width(format) / 8 * 2);
+    input_buffer = calloc(in_buffer_frames, snd_pcm_format_width(format) / 8 * 2);
 
   }
 
@@ -406,7 +406,10 @@ void ping_loop(int v, uint64_t delay_ms, char* wave_type, char* input_dev_name, 
     out_buffer = (char *) malloc(out_buffer_size);
     
     // TODO generate output sine wave in out_buffer
-
+    srand(time(NULL));
+    for (int i=0; i<out_buffer_size; i++) {
+      out_buffer[i] = (char) rand();
+    }
 
     snd_pcm_hw_params_get_period_time(params, &tmp, NULL);
 
@@ -445,7 +448,7 @@ void ping_loop(int v, uint64_t delay_ms, char* wave_type, char* input_dev_name, 
         fflush(stdout);
       }
 
-      if ((err = snd_pcm_writei(out_pcm_handle, buffer, in_buffer_frames)) != in_buffer_frames) {
+      if ((err = snd_pcm_writei(out_pcm_handle, out_buffer, in_buffer_frames)) != in_buffer_frames) {
         fprintf(stderr, "Can't write to PCM device (%s)\n", snd_strerror(err));
         break;
       }
@@ -457,15 +460,15 @@ void ping_loop(int v, uint64_t delay_ms, char* wave_type, char* input_dev_name, 
     }
 
     // record incoming audio to a buffer
-    if ((err = snd_pcm_readi(capture_handle, buffer, in_buffer_frames)) != in_buffer_frames) {
+    if ((err = snd_pcm_readi(capture_handle, input_buffer, in_buffer_frames)) != in_buffer_frames) {
       fprintf(stderr, "read from audio interface failed (%s)\n", snd_strerror(err));
       break;
     }
 
     if (v > 1) {
-      printf("buffer=");
+      printf("input_buffer=");
       for (int i=0; i<in_buffer_frames; i++) {
-        printf("%x", buffer[i]);
+        printf("%x", input_buffer[i]);
       }
       printf("\n");
     }
@@ -475,7 +478,7 @@ void ping_loop(int v, uint64_t delay_ms, char* wave_type, char* input_dev_name, 
 
   printf("Exiting...\n");
 
-  free(buffer);
+  free(input_buffer);
   snd_pcm_close(capture_handle);
 
   snd_pcm_drain(out_pcm_handle);
