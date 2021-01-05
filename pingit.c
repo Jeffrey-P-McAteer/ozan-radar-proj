@@ -266,7 +266,7 @@ void ping_loop(int v, uint64_t delay_ms, char* wave_type, char* input_dev_name, 
   int err;
   
   unsigned int rate = 44100;
-  int buffer_frames = 512;
+  int in_buffer_frames = 512;
   char* buffer;
 
   snd_pcm_t* capture_handle;
@@ -321,26 +321,25 @@ void ping_loop(int v, uint64_t delay_ms, char* wave_type, char* input_dev_name, 
       exit(1);
     }
 
-    buffer = calloc(buffer_frames, snd_pcm_format_width(format) / 8 * 2);
+    buffer = calloc(in_buffer_frames, snd_pcm_format_width(format) / 8 * 2);
 
   }
 
   // Output locals
   unsigned int pcm, tmp, dir;
-  int output_rate, channels, seconds;
-  snd_pcm_t *pcm_handle;
+  int output_rate, channels;
+  snd_pcm_t *out_pcm_handle;
   snd_pcm_hw_params_t *params;
-  snd_pcm_uframes_t frames;
+  snd_pcm_uframes_t out_buffer_frames;
   char *out_buffer;
   int out_buffer_size, loops;
 
   output_rate = rate;
   channels = 1;
-  seconds  = 1;
 
   { // speaker HW init
     /* Open the PCM device in playback mode */
-    if (pcm = snd_pcm_open(&pcm_handle, output_dev_name, SND_PCM_STREAM_PLAYBACK, 0) < 0) {
+    if (pcm = snd_pcm_open(&out_pcm_handle, output_dev_name, SND_PCM_STREAM_PLAYBACK, 0) < 0) {
       printf("ERROR: Can't open \"%s\" PCM device. %s\n", output_dev_name, snd_strerror(pcm));
       exit(1);
     }
@@ -348,40 +347,40 @@ void ping_loop(int v, uint64_t delay_ms, char* wave_type, char* input_dev_name, 
     /* Allocate parameters object and fill it with default values*/
     snd_pcm_hw_params_alloca(&params);
 
-    snd_pcm_hw_params_any(pcm_handle, params);
+    snd_pcm_hw_params_any(out_pcm_handle, params);
 
     /* Set parameters */
-    if (pcm = snd_pcm_hw_params_set_access(pcm_handle, params, SND_PCM_ACCESS_RW_INTERLEAVED) < 0) {
+    if (pcm = snd_pcm_hw_params_set_access(out_pcm_handle, params, SND_PCM_ACCESS_RW_INTERLEAVED) < 0) {
       printf("ERROR: Can't set interleaved mode. %s\n", snd_strerror(pcm));
       exit(1);
     }
 
-    if (pcm = snd_pcm_hw_params_set_format(pcm_handle, params, SND_PCM_FORMAT_S16_LE) < 0) {
+    if (pcm = snd_pcm_hw_params_set_format(out_pcm_handle, params, SND_PCM_FORMAT_S16_LE) < 0) {
       printf("ERROR: Can't set format. %s\n", snd_strerror(pcm));
       exit(1);
     }
 
-    if (pcm = snd_pcm_hw_params_set_channels(pcm_handle, params, channels) < 0) {
+    if (pcm = snd_pcm_hw_params_set_channels(out_pcm_handle, params, channels) < 0) {
       printf("ERROR: Can't set channels number. %s\n", snd_strerror(pcm));
       exit(1);
     }
 
-    if (pcm = snd_pcm_hw_params_set_rate_near(pcm_handle, params, &output_rate, 0) < 0) {
+    if (pcm = snd_pcm_hw_params_set_rate_near(out_pcm_handle, params, &output_rate, 0) < 0) {
       printf("ERROR: Can't set output_rate. %s\n", snd_strerror(pcm));
       exit(1);
     }
 
     /* Write parameters */
-    if (pcm = snd_pcm_hw_params(pcm_handle, params) < 0) {
+    if (pcm = snd_pcm_hw_params(out_pcm_handle, params) < 0) {
       printf("ERROR: Can't set harware parameters. %s\n", snd_strerror(pcm));
       exit(1);
     }
 
     /* Resume information */
     if (v > 0) {
-      printf("PCM name: '%s'\n", snd_pcm_name(pcm_handle));
+      printf("PCM name: '%s'\n", snd_pcm_name(out_pcm_handle));
 
-      printf("PCM state: %s\n", snd_pcm_state_name(snd_pcm_state(pcm_handle)));
+      printf("PCM state: %s\n", snd_pcm_state_name(snd_pcm_state(out_pcm_handle)));
     }
 
     snd_pcm_hw_params_get_channels(params, &tmp);
@@ -395,34 +394,21 @@ void ping_loop(int v, uint64_t delay_ms, char* wave_type, char* input_dev_name, 
     }
 
     snd_pcm_hw_params_get_rate(params, &tmp, 0);
+
     if (v > 0) {
-      printf("rate: %d bps\n", tmp);
-
-      printf("seconds: %d\n", seconds); 
+      printf("out rate: %d bps\n", tmp);
     }
-    /* Allocate out_bufferer to hold single period */
-    snd_pcm_hw_params_get_period_size(params, &frames, 0);
 
-    out_buffer_size = frames * channels * 2 /* 2 -> sample size */;
+    /* Allocate out_bufferer to hold single period */
+    snd_pcm_hw_params_get_period_size(params, &out_buffer_frames, 0);
+
+    out_buffer_size = out_buffer_frames * channels * 2 /* 2 -> sample size */;
     out_buffer = (char *) malloc(out_buffer_size);
+    
+    // TODO generate output sine wave in out_buffer
+
 
     snd_pcm_hw_params_get_period_time(params, &tmp, NULL);
-
-    for (loops = (seconds * 1000000) / tmp; loops > 0; loops--) {
-
-      if (pcm = read(0, out_buffer, out_buffer_size) == 0) {
-        printf("Early end of file.\n");
-        return;
-      }
-
-      if (pcm = snd_pcm_writei(pcm_handle, out_buffer, frames) == -EPIPE) {
-        printf("XRUN.\n");
-        snd_pcm_prepare(pcm_handle);
-      } else if (pcm < 0) {
-        printf("ERROR. Can't write to PCM device. %s\n", snd_strerror(pcm));
-      }
-
-    }
 
   }
 
@@ -437,7 +423,7 @@ void ping_loop(int v, uint64_t delay_ms, char* wave_type, char* input_dev_name, 
   clock_gettime(CLOCK_MONOTONIC, &last_ping_in);
   clock_gettime(CLOCK_MONOTONIC, &now);
 
-  while (true) { break;
+  while (true) {
 
     //usleep(10 * 1000); // 10 * 1000 * 1000 nanoseconds
     clock_gettime(CLOCK_MONOTONIC, &now);
@@ -459,19 +445,26 @@ void ping_loop(int v, uint64_t delay_ms, char* wave_type, char* input_dev_name, 
         fflush(stdout);
       }
 
-
+      if ((err = snd_pcm_writei(out_pcm_handle, buffer, in_buffer_frames)) != in_buffer_frames) {
+        fprintf(stderr, "Can't write to PCM device (%s)\n", snd_strerror(err));
+        break;
+      }
+      else {
+        // Write success, reset out_pcm_handle
+        snd_pcm_prepare(out_pcm_handle);
+      }
 
     }
 
     // record incoming audio to a buffer
-    if ((err = snd_pcm_readi(capture_handle, buffer, buffer_frames)) != buffer_frames) {
+    if ((err = snd_pcm_readi(capture_handle, buffer, in_buffer_frames)) != in_buffer_frames) {
       fprintf(stderr, "read from audio interface failed (%s)\n", snd_strerror(err));
       break;
     }
 
     if (v > 1) {
       printf("buffer=");
-      for (int i=0; i<buffer_frames; i++) {
+      for (int i=0; i<in_buffer_frames; i++) {
         printf("%x", buffer[i]);
       }
       printf("\n");
@@ -485,8 +478,8 @@ void ping_loop(int v, uint64_t delay_ms, char* wave_type, char* input_dev_name, 
   free(buffer);
   snd_pcm_close(capture_handle);
 
-  snd_pcm_drain(pcm_handle);
-  snd_pcm_close(pcm_handle);
+  snd_pcm_drain(out_pcm_handle);
+  snd_pcm_close(out_pcm_handle);
   free(out_buffer);
 
 }
