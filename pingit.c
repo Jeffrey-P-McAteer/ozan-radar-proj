@@ -1,5 +1,6 @@
 
 #include <alsa/asoundlib.h>
+#include <math.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -253,6 +254,24 @@ uint64_t ns_diff(struct timespec* end, struct timespec* start) {
 
 }
 
+#include <byteswap.h>
+#include <limits.h>
+
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+#define COMPOSE_ID(a,b,c,d) ((a) | ((b)<<8) | ((c)<<16) | ((d)<<24))
+#define LE_SHORT(v)   (v)
+#define LE_INT(v)   (v)
+#define BE_SHORT(v)   bswap_16(v)
+#define BE_INT(v)   bswap_32(v)
+#else /* __BIG_ENDIAN */
+#define COMPOSE_ID(a,b,c,d) ((d) | ((c)<<8) | ((b)<<16) | ((a)<<24))
+#define LE_SHORT(v)   bswap_16(v)
+#define LE_INT(v)   bswap_32(v)
+#define BE_SHORT(v)   (v)
+#define BE_INT(v)   (v)
+#endif
+
+
 // https://gist.github.com/albanpeignier/104902
 // Also https://gist.github.com/ghedo/963382/815c98d1ba0eda1b486eb9d80d9a91a81d995283
 void ping_loop(int v, uint64_t delay_ms, char* wave_type, char* input_dev_name, char* output_dev_name) {
@@ -267,7 +286,7 @@ void ping_loop(int v, uint64_t delay_ms, char* wave_type, char* input_dev_name, 
   
   unsigned int rate = 44100;
   int in_buffer_frames = 512;
-  char* input_buffer;
+  uint8_t* input_buffer;
 
   snd_pcm_t* capture_handle;
   snd_pcm_hw_params_t* hw_params;
@@ -331,7 +350,7 @@ void ping_loop(int v, uint64_t delay_ms, char* wave_type, char* input_dev_name, 
   snd_pcm_t *out_pcm_handle;
   snd_pcm_hw_params_t *params;
   snd_pcm_uframes_t out_buffer_frames;
-  char *out_buffer;
+  float* out_buffer; // Float 32 bit CPU endian 
   int out_buffer_size, loops;
 
   output_rate = rate;
@@ -355,7 +374,7 @@ void ping_loop(int v, uint64_t delay_ms, char* wave_type, char* input_dev_name, 
       exit(1);
     }
 
-    if (pcm = snd_pcm_hw_params_set_format(out_pcm_handle, params, SND_PCM_FORMAT_S16_LE) < 0) {
+    if (pcm = snd_pcm_hw_params_set_format(out_pcm_handle, params, SND_PCM_FORMAT_FLOAT) < 0) {
       printf("ERROR: Can't set format. %s\n", snd_strerror(pcm));
       exit(1);
     }
@@ -403,13 +422,16 @@ void ping_loop(int v, uint64_t delay_ms, char* wave_type, char* input_dev_name, 
     snd_pcm_hw_params_get_period_size(params, &out_buffer_frames, 0);
 
     out_buffer_size = out_buffer_frames * channels * 2 /* 2 -> sample size */;
-    out_buffer = (char *) malloc(out_buffer_size);
+    out_buffer = calloc(out_buffer_size, sizeof(float));
     
     // TODO generate output sine wave in out_buffer
     // See https://www.alsa-project.org/alsa-doc/alsa-lib/_2test_2pcm_8c-example.html
-    srand(time(NULL));
+
+    // We use SND_PCM_FORMAT_FLOAT
+    int f = 440;                //frequency
+    int fs = 48000;             //sampling frequency
     for (int i=0; i<out_buffer_size; i++) {
-      out_buffer[i] = (char) rand();
+      out_buffer[i] = (sin(2*M_PI*f/fs*i));
     }
 
     snd_pcm_hw_params_get_period_time(params, &tmp, NULL);
@@ -449,7 +471,7 @@ void ping_loop(int v, uint64_t delay_ms, char* wave_type, char* input_dev_name, 
         fflush(stdout);
       }
 
-      if ((err = snd_pcm_writei(out_pcm_handle, out_buffer, in_buffer_frames)) != in_buffer_frames) {
+      if ((err = snd_pcm_writei(out_pcm_handle, out_buffer, out_buffer_frames)) != out_buffer_frames) {
         fprintf(stderr, "Can't write to PCM device (%s)\n", snd_strerror(err));
         break;
       }
@@ -473,6 +495,9 @@ void ping_loop(int v, uint64_t delay_ms, char* wave_type, char* input_dev_name, 
       }
       printf("\n");
     }
+
+    // Detect a loud noise (anything over the running average)
+
 
 
   }

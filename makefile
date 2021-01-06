@@ -6,6 +6,6 @@ pingit: pingit.c
 		-Wall -g \
 		-o pingit \
 		$(shell pkg-config --cflags --libs alsa) \
-		-lrt \
+		-lrt -lm \
 		pingit.c
 
