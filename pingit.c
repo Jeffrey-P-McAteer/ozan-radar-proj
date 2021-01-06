@@ -285,12 +285,12 @@ void ping_loop(int v, uint64_t delay_ms, char* wave_type, char* input_dev_name, 
   int err;
   
   unsigned int rate = 44100;
-  int in_buffer_frames = 512;
-  uint8_t* input_buffer;
+  int in_buffer_frames = 1024;
+  float* input_buffer;
 
   snd_pcm_t* capture_handle;
   snd_pcm_hw_params_t* hw_params;
-  snd_pcm_format_t format = SND_PCM_FORMAT_S16_LE;
+  snd_pcm_format_t format = SND_PCM_FORMAT_FLOAT;
 
   { // mic HW init
     if ((err = snd_pcm_open(&capture_handle, input_dev_name, SND_PCM_STREAM_CAPTURE, 0)) < 0) {
@@ -444,6 +444,9 @@ void ping_loop(int v, uint64_t delay_ms, char* wave_type, char* input_dev_name, 
   struct timespec last_ping_out = {0,0};
   struct timespec last_ping_in = {0,0};
   struct timespec now = {0,0};
+  
+  float avg_amplitude = 0.0;
+  int num_readings_to_keep_avg_of = 4096; // the higher this is the longer the avg window's timespan
 
   clock_gettime(CLOCK_MONOTONIC, &last_ping_out);
   clock_gettime(CLOCK_MONOTONIC, &last_ping_in);
@@ -491,13 +494,38 @@ void ping_loop(int v, uint64_t delay_ms, char* wave_type, char* input_dev_name, 
     if (v > 1) {
       printf("input_buffer=");
       for (int i=0; i<in_buffer_frames; i++) {
-        printf("%x", input_buffer[i]);
+        printf("%.2f ", input_buffer[i]);
       }
       printf("\n");
+      printf("avg_amplitude=%.4f\n", avg_amplitude);
     }
 
-    // Detect a loud noise (anything over the running average)
+    // Update avg amplitude
+    for (int i=0; i<in_buffer_frames; i++) {
+      avg_amplitude -= (avg_amplitude / num_readings_to_keep_avg_of);
+      avg_amplitude += fabs(input_buffer[i] / num_readings_to_keep_avg_of);
+    }
 
+    // Detect a loud noise (anything X% over the running average)
+    float highest_amplitude = -999.0;
+    for (int i=0; i<in_buffer_frames; i++) {
+      if (fabs(input_buffer[i]) > highest_amplitude) {
+        highest_amplitude = fabs(input_buffer[i]);
+      }
+    }
+
+    if (v > 0) {
+      printf("highest_amplitude=%.4f\n", highest_amplitude);
+    }
+
+    if (fabs(highest_amplitude) > fabs(avg_amplitude * 2.0)) {
+      // TODO calc motion using timer data
+
+      if (v > 0) {
+        printf("\nNOISE!\n\n");
+      }
+      
+    }
 
 
   }
