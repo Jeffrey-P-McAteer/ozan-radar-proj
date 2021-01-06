@@ -13,17 +13,18 @@
 #define die(msg) { fprintf(stderr, "[%s:%d] Err: " msg "\n", __FILE__, __LINE__); exit(1); }
 
 // headers are for wusses
-int prog_main(char* cmd, int v, uint64_t delay_ms, char* input_dev_name, char* output_dev_name);
+int prog_main(char* cmd, int v, uint64_t delay_ms, float sensitivity, char* input_dev_name, char* output_dev_name);
 void help();
 void list_hw();
 void detect_hw();
-void ping_loop(int v, uint64_t delay_ms, char* wave_type, char* input_dev_name, char* output_dev_name);
+void ping_loop(int v, uint64_t delay_ms, char* wave_type, float sensitivity, char* input_dev_name, char* output_dev_name);
 
 int main(int argc, char** argv) {
   // Args go on the stack
   char* cmd = "help";
   int v = 0;
   uint64_t delay_ms = 1000;
+  float sensitivity = 2.0;
   char* input_dev_name = "";
   char* output_dev_name = "";
 
@@ -33,7 +34,7 @@ int main(int argc, char** argv) {
   }
   int c;
   opterr = 0;
-  while ((c = getopt (argc, argv, "d:i:o:v")) != -1) {
+  while ((c = getopt (argc, argv, "d:i:o:s:v")) != -1) {
     switch (c) {
       case 'v':
         v += 1;
@@ -41,6 +42,10 @@ int main(int argc, char** argv) {
 
       case 'd':
         delay_ms = strtoul(optarg, NULL, 10);
+        break;
+
+      case 's':
+        sensitivity = strtod(optarg, NULL);
         break;
 
       case 'i':
@@ -71,11 +76,11 @@ int main(int argc, char** argv) {
   }
 
   // Pass parsed args to prog_main
-  return prog_main(cmd, v, delay_ms, input_dev_name, output_dev_name);
+  return prog_main(cmd, v, delay_ms, sensitivity, input_dev_name, output_dev_name);
 
 }
 
-int prog_main(char* cmd, int v, uint64_t delay_ms, char* input_dev_name, char* output_dev_name) {
+int prog_main(char* cmd, int v, uint64_t delay_ms, float sensitivity, char* input_dev_name, char* output_dev_name) {
   if (strcmp(cmd, "help") == 0) {
     help();
   }
@@ -87,7 +92,7 @@ int prog_main(char* cmd, int v, uint64_t delay_ms, char* input_dev_name, char* o
   }
   else if (strcmp(cmd, "ping") == 0) {
     // TODO let user specify wave type, once we support those
-    ping_loop(v, delay_ms, "square", input_dev_name, output_dev_name);
+    ping_loop(v, delay_ms, "square", sensitivity, input_dev_name, output_dev_name);
   }
   else {
     help();
@@ -108,6 +113,7 @@ void help() {
     "\n"\
     "ping args:\n"\
     "  -d ms         Set the delay between pings\n"\
+    "  -s factor     Set signal detection sensitivity as percent over average noise (default 2.0, 1.0 means bg noise will trigger and 4.0 requires very loud noise)\n"\
     "  -i dev-name   Name of input audio device (mic)\n"\
     "  -o dev-name   Name of output audio device (speaker)\n"\
     "  -v            Be verbose (repeat for more verbosity)\n"\
@@ -274,7 +280,7 @@ uint64_t ns_diff(struct timespec* end, struct timespec* start) {
 
 // https://gist.github.com/albanpeignier/104902
 // Also https://gist.github.com/ghedo/963382/815c98d1ba0eda1b486eb9d80d9a91a81d995283
-void ping_loop(int v, uint64_t delay_ms, char* wave_type, char* input_dev_name, char* output_dev_name) {
+void ping_loop(int v, uint64_t delay_ms, char* wave_type, float sensitivity, char* input_dev_name, char* output_dev_name) {
   // How verbose are we today?
   if (v > 1) {
     printf("verbosity level = %d\n", v);
@@ -518,13 +524,22 @@ void ping_loop(int v, uint64_t delay_ms, char* wave_type, char* input_dev_name, 
       printf("highest_amplitude=%.4f\n", highest_amplitude);
     }
 
-    if (fabs(highest_amplitude) > fabs(avg_amplitude * 2.0)) {
-      // TODO calc motion using timer data
-
+    if (fabs(highest_amplitude) > fabs(avg_amplitude * sensitivity)) {
+      
       if (v > 0) {
         printf("\nNOISE!\n\n");
       }
-      
+
+      // Distance calculation
+      uint64_t ns_since_last_ping = ns_diff(&now, &last_ping_out);
+
+      // TODO let user specify speed of sound in medium as meters/sec
+      double sound_speed = 343.0;
+      double sound_speed_meters_per_ns = sound_speed * (1.0 / 1000000000.0);
+
+      float distance_m = sound_speed_meters_per_ns * (ns_since_last_ping);
+      printf("distance_m=%.3f\n", distance_m);
+
     }
 
 
