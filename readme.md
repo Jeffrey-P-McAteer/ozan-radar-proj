@@ -54,7 +54,7 @@ make pingit && ./pingit --help
 # Send a sound wave every 2 seconds to "sysdefault:CARD=PCH".
 # record from "default" microphone, and if the ambient noise is > 3x what is was
 # detect that as a response sound wave.
-./pingit ping -d 2000 -i default -o sysdefault:CARD=PCH -s 3.0 -w /tmp/stuff.raw
+./pingit ping -d 2000 -i default:CARD=Device -o default:CARD=Device -s 3.0 -w /tmp/stuff.raw
 
 
 ```
