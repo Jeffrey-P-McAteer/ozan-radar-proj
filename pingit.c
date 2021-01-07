@@ -548,7 +548,7 @@ void ping_loop(int v, uint64_t delay_ms, char* wave_type, float sensitivity, cha
       uint64_t ns_since_last_ping = ns_diff(&now, &last_ping_out);
 
       // TODO let user specify speed of sound in medium as meters/sec
-      double sound_speed = 343.0;
+      double sound_speed = 1451.0;
       double sound_speed_meters_per_ns = sound_speed * (1.0 / 1000000000.0);
 
       float distance_m = sound_speed_meters_per_ns * (ns_since_last_ping);
