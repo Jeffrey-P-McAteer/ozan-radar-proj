@@ -26,6 +26,7 @@ git pull
 
 ssh pi
 
+# Where "shared" is the name of the session
 tmux new-session -s shared
 tmux attach-session -t shared
 
