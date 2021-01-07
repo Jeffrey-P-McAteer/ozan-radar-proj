@@ -9,11 +9,27 @@ Goal: map depth using piezoelectric crystals responsible for generating + receiv
 # Status
 
  - [x] List audio devices
- - [ ] Record mic input
- - [ ] Send ping out via speaker
+ - [x] Record mic input
+ - [x] Send ping out via speaker
  - [ ] Show waves/decode useful signals from mic (aka distance calculation)
  - [ ] Add aux. arguments: wave type (sine,square,sawtooth) frequency, amplitude, distance offset
 
+# Misc. commands
+
+The human mind can recognize 100x faster than it can recall, so here you go:
+
+```bash
+git add -A .
+git commit -a -m "Some message"
+git push
+git pull
+
+ssh pi
+
+tmux new-session -s shared
+tmux attach-session -t shared
+
+```
 
 # Dev. Req.
 
