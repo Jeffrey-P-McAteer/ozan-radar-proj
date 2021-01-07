@@ -48,10 +48,13 @@ make pingit && ./pingit --help
 # Figure out your mic + speaker names (we use ALSA)
 ./pingit list-hw
 
-# Send a square-wave ping every 1 second and print computed distance
-# as we receive audio. This example adds a distance correction
-# of 4 meters.
-./pingit ping -d 1000 
+# Watch for new HW as it is plugged in + print the names
+./pingit detect-hw
+
+# Send a sound wave every 2 seconds to "sysdefault:CARD=PCH".
+# record from "default" microphone, and if the ambient noise is > 3x what is was
+# detect that as a response sound wave.
+./pingit ping -d 2000 -i default -o sysdefault:CARD=PCH -s 3.0 -w /tmp/stuff.raw
 
 
 ```
