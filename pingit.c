@@ -440,6 +440,7 @@ void ping_loop(int v, uint64_t delay_ms, char* wave_type, float sensitivity, cha
     // See https://www.alsa-project.org/alsa-doc/alsa-lib/_2test_2pcm_8c-example.html
 
     // We use SND_PCM_FORMAT_FLOAT
+    // Do not produce sound <50_000 hertz!
     int f = 50000;                //frequency (aim for 50khz, see https://www.fisheries.noaa.gov/topic/marine-mammal-protection)
     int fs = 48000;             //sampling frequency
     for (int i=0; i<out_buffer_size; i++) {
