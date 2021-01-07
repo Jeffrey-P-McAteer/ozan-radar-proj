@@ -13,11 +13,11 @@
 #define die(msg) { fprintf(stderr, "[%s:%d] Err: " msg "\n", __FILE__, __LINE__); exit(1); }
 
 // headers are for wusses
-int prog_main(char* cmd, int v, uint64_t delay_ms, float sensitivity, char* input_dev_name, char* output_dev_name);
+int prog_main(char* cmd, int v, uint64_t delay_ms, float sensitivity, char* input_dev_name, char* output_raw_pcm_file, char* output_dev_name);
 void help();
 void list_hw();
 void detect_hw();
-void ping_loop(int v, uint64_t delay_ms, char* wave_type, float sensitivity, char* input_dev_name, char* output_dev_name);
+void ping_loop(int v, uint64_t delay_ms, char* wave_type, float sensitivity, char* input_dev_name, char* output_raw_pcm_file, char* output_dev_name);
 
 int main(int argc, char** argv) {
   // Args go on the stack
@@ -26,6 +26,7 @@ int main(int argc, char** argv) {
   uint64_t delay_ms = 1000;
   float sensitivity = 2.0;
   char* input_dev_name = "";
+  char* output_raw_pcm_file = "";
   char* output_dev_name = "";
 
   // Parse args
@@ -34,7 +35,7 @@ int main(int argc, char** argv) {
   }
   int c;
   opterr = 0;
-  while ((c = getopt (argc, argv, "d:i:o:s:v")) != -1) {
+  while ((c = getopt (argc, argv, "d:i:o:s:w:v")) != -1) {
     switch (c) {
       case 'v':
         v += 1;
@@ -48,6 +49,10 @@ int main(int argc, char** argv) {
         sensitivity = strtod(optarg, NULL);
         break;
 
+      case 'w':
+        output_raw_pcm_file = optarg;
+        break;
+
       case 'i':
         input_dev_name = optarg;
         break;
@@ -57,7 +62,7 @@ int main(int argc, char** argv) {
         break;
 
       case '?':
-        if (optopt == 'd') {
+        if (optopt == 'd' || optopt == 's' || optopt == 'w' || optopt == 'i' || optopt == 'o') {
           fprintf (stderr, "Option -%c requires an argument.\n", optopt);
         }
         else if (isprint (optopt)) {
@@ -76,11 +81,11 @@ int main(int argc, char** argv) {
   }
 
   // Pass parsed args to prog_main
-  return prog_main(cmd, v, delay_ms, sensitivity, input_dev_name, output_dev_name);
+  return prog_main(cmd, v, delay_ms, sensitivity, input_dev_name, output_raw_pcm_file, output_dev_name);
 
 }
 
-int prog_main(char* cmd, int v, uint64_t delay_ms, float sensitivity, char* input_dev_name, char* output_dev_name) {
+int prog_main(char* cmd, int v, uint64_t delay_ms, float sensitivity, char* input_dev_name, char* output_raw_pcm_file, char* output_dev_name) {
   if (strcmp(cmd, "help") == 0) {
     help();
   }
@@ -92,7 +97,7 @@ int prog_main(char* cmd, int v, uint64_t delay_ms, float sensitivity, char* inpu
   }
   else if (strcmp(cmd, "ping") == 0) {
     // TODO let user specify wave type, once we support those
-    ping_loop(v, delay_ms, "square", sensitivity, input_dev_name, output_dev_name);
+    ping_loop(v, delay_ms, "square", sensitivity, input_dev_name, output_raw_pcm_file, output_dev_name);
   }
   else {
     help();
@@ -115,6 +120,7 @@ void help() {
     "  -d ms         Set the delay between pings\n"\
     "  -s factor     Set signal detection sensitivity as percent over average noise (default 2.0, 1.0 means bg noise will trigger and 4.0 requires very loud noise)\n"\
     "  -i dev-name   Name of input audio device (mic)\n"\
+    "  -w raw_pcm_file  Name of file to dump 32-bit float PCM data to (convert to .wav with TODO FFMPEG )"
     "  -o dev-name   Name of output audio device (speaker)\n"\
     "  -v            Be verbose (repeat for more verbosity)\n"\
     "\n"\
@@ -280,7 +286,7 @@ uint64_t ns_diff(struct timespec* end, struct timespec* start) {
 
 // https://gist.github.com/albanpeignier/104902
 // Also https://gist.github.com/ghedo/963382/815c98d1ba0eda1b486eb9d80d9a91a81d995283
-void ping_loop(int v, uint64_t delay_ms, char* wave_type, float sensitivity, char* input_dev_name, char* output_dev_name) {
+void ping_loop(int v, uint64_t delay_ms, char* wave_type, float sensitivity, char* input_dev_name, char* output_raw_pcm_file, char* output_dev_name) {
   // How verbose are we today?
   if (v > 1) {
     printf("verbosity level = %d\n", v);
@@ -291,7 +297,7 @@ void ping_loop(int v, uint64_t delay_ms, char* wave_type, float sensitivity, cha
   int err;
   
   unsigned int rate = 44100;
-  int in_buffer_frames = 1024;
+  int in_buffer_frames = 256;
   float* input_buffer;
 
   snd_pcm_t* capture_handle;
@@ -434,7 +440,7 @@ void ping_loop(int v, uint64_t delay_ms, char* wave_type, float sensitivity, cha
     // See https://www.alsa-project.org/alsa-doc/alsa-lib/_2test_2pcm_8c-example.html
 
     // We use SND_PCM_FORMAT_FLOAT
-    int f = 440;                //frequency
+    int f = 50000;                //frequency (aim for 50khz, see https://www.fisheries.noaa.gov/topic/marine-mammal-protection)
     int fs = 48000;             //sampling frequency
     for (int i=0; i<out_buffer_size; i++) {
       out_buffer[i] = (sin(2*M_PI*f/fs*i));
@@ -444,6 +450,7 @@ void ping_loop(int v, uint64_t delay_ms, char* wave_type, float sensitivity, cha
 
   }
 
+  FILE* raw_pcm_file = open(output_raw_pcm_file, "wb");
 
   // The business logic loop
   uint64_t delay_ns = delay_ms * 1000;
@@ -497,6 +504,12 @@ void ping_loop(int v, uint64_t delay_ms, char* wave_type, float sensitivity, cha
       break;
     }
 
+    // Save to debug file
+    // if (raw_pcm_file != NULL) {
+    //   fwrite(input_buffer, 1, in_buffer_frames, raw_pcm_file);
+    // }
+    // ^^ TODO debug segfault?
+
     if (v > 1) {
       printf("input_buffer=");
       for (int i=0; i<in_buffer_frames; i++) {
@@ -546,6 +559,10 @@ void ping_loop(int v, uint64_t delay_ms, char* wave_type, float sensitivity, cha
   }
 
   printf("Exiting...\n");
+
+  if (raw_pcm_file != NULL) {
+    fclose(raw_pcm_file);
+  }
 
   free(input_buffer);
   snd_pcm_close(capture_handle);
