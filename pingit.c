@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <time.h>
+#include <fcntl.h>
 
 #define die(msg) { fprintf(stderr, "[%s:%d] Err: " msg "\n", __FILE__, __LINE__); exit(1); }
 
@@ -451,7 +452,7 @@ void ping_loop(int v, uint64_t delay_ms, char* wave_type, float sensitivity, cha
 
   }
 
-  FILE* raw_pcm_file = open(output_raw_pcm_file, "wb");
+  FILE* raw_pcm_file = open(output_raw_pcm_file, O_RDWR | O_CREAT | O_NONBLOCK);
 
   // The business logic loop
   uint64_t delay_ns = delay_ms * 1000;
